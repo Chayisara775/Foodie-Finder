@@ -1,328 +1,182 @@
-// =====================================================================
-// dashboard.js — Foodie Finder
-// =====================================================================
-
-// =====================================================================
-// ตัวแปร
-// =====================================================================
-
 let currentMeals = [];
-let currentAlgorithm = 'selection';
-let currentOrder = 'asc';
+let favorites = JSON.parse(localStorage.getItem("foodieFavorites")) || [];
 
-// =====================================================================
-// โหลดเมนู
-// =====================================================================
 
+// ===============================
+// LOAD MEALS
+// ===============================
 async function loadDashboard() {
 
-  currentAlgorithm =
-    document.getElementById('algo').value;
+  const mealsContainer = document.getElementById("meals");
 
-  currentOrder =
-    document.getElementById('order').value;
-
-  const keyword =
-    document.getElementById('searchInput').value.trim();
-
-  const country =
-    document.getElementById('country').value;
+  mealsContainer.innerHTML = `
+    <div class="loading">
+      🍳 กำลังโหลดเมนู...
+    </div>
+  `;
 
   try {
 
+    const sort = document.getElementById("sort").value;
+    const order = document.getElementById("order").value;
+    const keyword = document.getElementById("searchInput").value.trim();
+
     let url;
 
-    // ถ้ามีคำค้น
     if (keyword) {
-
-      url =
-        `/search?q=${encodeURIComponent(keyword)}`;
-
+      url = `/search?q=${encodeURIComponent(keyword)}`;
     } else {
-
-      url =
-        `/meals?sort=${currentAlgorithm}&order=${currentOrder}`;
-
+      url = `/meals?sort=${sort}&order=${order}`;
     }
 
-    const res =
-      await fetch(url);
+    const response = await fetch(url);
 
-    if (!res.ok) {
-      throw new Error('โหลดข้อมูลไม่สำเร็จ');
+    if (!response.ok) {
+      throw new Error("โหลดข้อมูลไม่สำเร็จ");
     }
 
-    const result =
-      await res.json();
+    const result = await response.json();
 
-    let data =
-      result.data || [];
+    currentMeals = result.data || [];
 
-    // ===============================================================
-    // Filter ประเทศ
-    // ===============================================================
+    renderMeals(currentMeals);
 
-    if (country) {
-
-      data =
-        data.filter(meal =>
-          meal.area === country
-        );
-
-    }
-
-    // ===============================================================
-    // Sort
-    // ถ้ามี keyword หรือ filter ประเทศ
-    // ต้อง Sort ฝั่งหน้าเว็บอีกครั้ง
-    // ===============================================================
-
-    if (keyword || country) {
-
-      data =
-        sortMeals(
-          data,
-          currentAlgorithm,
-          currentOrder
-        );
-
-    }
-
-    currentMeals = data;
-
-    renderMeals(data);
-
-    // ===============================================================
-    // แสดงข้อมูล Sort
-    // ===============================================================
-
-    const algorithmName = {
-
-      selection: 'Selection Sort',
-      insertion: 'Insertion Sort',
-      bubble: 'Bubble Sort'
-
-    };
-
-    const orderName =
-      currentOrder === 'asc'
-        ? 'A → Z'
-        : 'Z → A';
-
-    document.getElementById(
-      'sortInfo'
-    ).innerHTML = `
-      🔀 ${algorithmName[currentAlgorithm]}
-      <span>•</span>
-      ${orderName}
-      <span>•</span>
-      พบ ${data.length} เมนู
+    document.getElementById("sortInfo").innerHTML = `
+      <div style="margin-top:10px;">
+        📊 ${result.algorithm || sort}
+        | ${result.count || currentMeals.length} เมนู
+        ${result.ms !== undefined ? `| ⏱️ ${result.ms} ms` : ""}
+      </div>
     `;
 
-    document.getElementById(
-      'error'
-    ).style.display = 'none';
+    renderFavorites();
 
-  } catch (err) {
+  } catch (error) {
 
-    showError(err.message);
+    showError(error.message);
 
   }
-
 }
 
-// =====================================================================
-// Sort
-// =====================================================================
 
-function sortMeals(arr, algo, order) {
+// ===============================
+// SELECTION SORT
+// ===============================
+function selectionSort(arr, order = "asc") {
 
-  if (algo === 'insertion') {
+  const data = [...arr];
 
-    return insertionSort(
-      arr,
-      order
-    );
+  for (let i = 0; i < data.length - 1; i++) {
 
-  }
+    let selected = i;
 
-  if (algo === 'bubble') {
+    for (let j = i + 1; j < data.length; j++) {
 
-    return bubbleSort(
-      arr,
-      order
-    );
-
-  }
-
-  return selectionSort(
-    arr,
-    order
-  );
-
-}
-
-// =====================================================================
-// Selection Sort
-// =====================================================================
-
-function selectionSort(arr, order = 'asc') {
-
-  const a = [...arr];
-
-  for (
-    let i = 0;
-    i < a.length - 1;
-    i++
-  ) {
-
-    let targetIdx = i;
-
-    for (
-      let j = i + 1;
-      j < a.length;
-      j++
-    ) {
-
-      const compare =
-        a[j].name.localeCompare(
-          a[targetIdx].name
-        );
+      const a = data[j].name.toLowerCase();
+      const b = data[selected].name.toLowerCase();
 
       if (
-        (order === 'asc' && compare < 0) ||
-        (order === 'desc' && compare > 0)
+        order === "asc"
+          ? a < b
+          : a > b
       ) {
-
-        targetIdx = j;
-
+        selected = j;
       }
 
     }
 
-    [
-      a[i],
-      a[targetIdx]
-    ] = [
-      a[targetIdx],
-      a[i]
-    ];
+    if (selected !== i) {
 
+      const temp = data[i];
+
+      data[i] = data[selected];
+
+      data[selected] = temp;
+    }
   }
 
-  return a;
+  return data;
 }
 
-// =====================================================================
-// Insertion Sort
-// =====================================================================
 
-function insertionSort(arr, order = 'asc') {
+// ===============================
+// INSERTION SORT
+// ===============================
+function insertionSort(arr, order = "asc") {
 
-  const a = [...arr];
+  const data = [...arr];
 
-  for (
-    let i = 1;
-    i < a.length;
-    i++
-  ) {
+  for (let i = 1; i < data.length; i++) {
 
-    const key = a[i];
+    const current = data[i];
 
     let j = i - 1;
 
-    while (j >= 0) {
-
-      const compare =
-        a[j].name.localeCompare(
-          key.name
-        );
-
-      const shouldMove =
-        order === 'asc'
-          ? compare > 0
-          : compare < 0;
-
-      if (!shouldMove) {
-        break;
-      }
-
-      a[j + 1] =
-        a[j];
-
-      j--;
-
-    }
-
-    a[j + 1] =
-      key;
-
-  }
-
-  return a;
-}
-
-// =====================================================================
-// Bubble Sort
-// =====================================================================
-
-function bubbleSort(arr, order = 'asc') {
-
-  const a = [...arr];
-
-  for (
-    let i = 0;
-    i < a.length - 1;
-    i++
-  ) {
-
-    for (
-      let j = 0;
-      j < a.length - 1 - i;
-      j++
+    while (
+      j >= 0 &&
+      (
+        order === "asc"
+          ? data[j].name.toLowerCase() > current.name.toLowerCase()
+          : data[j].name.toLowerCase() < current.name.toLowerCase()
+      )
     ) {
 
-      const compare =
-        a[j].name.localeCompare(
-          a[j + 1].name
-        );
+      data[j + 1] = data[j];
+
+      j--;
+    }
+
+    data[j + 1] = current;
+  }
+
+  return data;
+}
+
+
+// ===============================
+// BUBBLE SORT
+// ===============================
+function bubbleSort(arr, order = "asc") {
+
+  const data = [...arr];
+
+  for (let i = 0; i < data.length; i++) {
+
+    for (let j = 0; j < data.length - i - 1; j++) {
+
+      const a = data[j].name.toLowerCase();
+      const b = data[j + 1].name.toLowerCase();
 
       const shouldSwap =
-        order === 'asc'
-          ? compare > 0
-          : compare < 0;
+        order === "asc"
+          ? a > b
+          : a < b;
 
       if (shouldSwap) {
 
-        [
-          a[j],
-          a[j + 1]
-        ] = [
-          a[j + 1],
-          a[j]
-        ];
+        const temp = data[j];
 
+        data[j] = data[j + 1];
+
+        data[j + 1] = temp;
       }
-
     }
-
   }
 
-  return a;
+  return data;
 }
 
-// =====================================================================
-// แสดงเมนู
-// =====================================================================
 
+// ===============================
+// RENDER MEALS
+// ===============================
 function renderMeals(meals) {
 
-  const box =
-    document.getElementById('meals');
+  const container = document.getElementById("meals");
 
-  if (meals.length === 0) {
+  if (!meals || meals.length === 0) {
 
-    box.innerHTML = `
+    container.innerHTML = `
       <div class="empty">
         😭 ไม่พบเมนูอาหาร
       </div>
@@ -331,189 +185,188 @@ function renderMeals(meals) {
     return;
   }
 
-  box.innerHTML =
-    meals.map((meal, index) => {
+  container.innerHTML = meals.map((meal, index) => {
 
-      const favorite =
-        isFavorite(meal.id);
+    const isFavorite = favorites.some(
+      item => String(item.id) === String(meal.id)
+    );
 
-      return `
-
-        <div class="meal-card">
-
-          <div class="rank">
-            #${index + 1}
-          </div>
-
-          <img
-            src="${meal.image}"
-            alt="${meal.name}"
-          >
-
-          <div class="meal-info">
-
-            <h3>
-              ${meal.name}
-            </h3>
-
-            <div class="meal-tags">
-
-              <span class="tag">
-                🍽️ ${meal.category || 'Food'}
-              </span>
-
-              <span class="tag">
-                🌎 ${meal.area || 'World'}
-              </span>
-
-            </div>
-
-            <div class="card-buttons">
-
-              <button
-                class="favorite-button
-                ${favorite ? 'active' : ''}"
-                onclick="toggleFavorite(${meal.id})"
-              >
-                ${favorite ? '❤️' : '♡'}
-              </button>
-
-              <button
-                class="detail-button"
-                onclick="showDetail(${meal.id})"
-              >
-                ดูวิธีทำ ♡
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      `;
-
-    }).join('');
-
-}
-
-// =====================================================================
-// ดูรายละเอียด
-// =====================================================================
-
-async function showDetail(id) {
-
-  try {
-
-    const res =
-      await fetch(`/meals/${id}`);
-
-    if (!res.ok) {
-
-      throw new Error(
-        'ไม่พบข้อมูลเมนู'
-      );
-
-    }
-
-    const meal =
-      await res.json();
-
-    document.getElementById(
-      'detail'
-    ).innerHTML = `
-
-      <div class="detail-content">
+    return `
+      <div class="meal-card">
 
         <img
           src="${meal.image}"
           alt="${meal.name}"
         >
 
-        <div>
-
-          <h2>
-            ${meal.name}
-          </h2>
-
-          <p>
-            🍽️ <b>ประเภท:</b>
-            ${meal.category || '-'}
-          </p>
-
-          <p>
-            🌎 <b>ประเทศ:</b>
-            ${meal.area || '-'}
-          </p>
-
-          <p>
-            🔑 <b>Meal ID:</b>
-            ${meal.id}
-          </p>
+        <div class="meal-content">
 
           <h3>
-            👩🏻‍🍳 วิธีทำ
+            ${index + 1}. ${meal.name}
           </h3>
 
-          <p class="instructions">
-            ${meal.instructions ||
-            'ไม่มีข้อมูลวิธีทำ'}
-          </p>
+          <div class="meal-tags">
+
+            <span class="tag">
+              🍴 ${meal.category || "Unknown"}
+            </span>
+
+            <span class="tag">
+              🌎 ${meal.area || "Unknown"}
+            </span>
+
+          </div>
+
+          <div class="card-buttons">
+
+            <button
+              class="detail-btn"
+              onclick="showDetail(${meal.id})"
+            >
+              👀 รายละเอียด
+            </button>
+
+            <button
+              class="favorite-button"
+              onclick="toggleFavorite(${meal.id})"
+            >
+              ${isFavorite ? "❤️" : "♡"}
+            </button>
+
+          </div>
 
         </div>
 
       </div>
-
     `;
 
-    document.getElementById(
-      'detail'
-    ).scrollIntoView({
-      behavior: 'smooth'
-    });
-
-  } catch (err) {
-
-    showError(err.message);
-
-  }
-
+  }).join("");
 }
 
-// =====================================================================
-// 🎲 สุ่มเมนู
-// =====================================================================
 
-async function randomMeal() {
+// ===============================
+// SHOW DETAIL
+// ===============================
+async function showDetail(id) {
+
+  const detail = document.getElementById("detail");
+
+  detail.style.display = "block";
+
+  detail.innerHTML = `
+    <div class="loading">
+      🍳 กำลังโหลดรายละเอียด...
+    </div>
+  `;
 
   try {
 
-    const button =
-      document.getElementById(
-        'randomButton'
-      );
+    const response = await fetch(`/meals/${id}`);
 
-    button.textContent =
-      '🎲 กำลังสุ่ม...';
-
-    const res =
-      await fetch('/random');
-
-    if (!res.ok) {
-
-      throw new Error(
-        'สุ่มเมนูไม่สำเร็จ'
-      );
-
+    if (!response.ok) {
+      throw new Error("ไม่พบข้อมูลเมนู");
     }
 
-    const meal =
-      await res.json();
+    const meal = await response.json();
 
-    // แสดงเมนูที่สุ่ม
-    document.getElementById(
-      'randomResult'
-    ).innerHTML = `
+    detail.innerHTML = `
+
+      <button
+        onclick="closeDetail()"
+        style="background:#ffe0ec;color:#c45a89;margin-bottom:15px;"
+      >
+        ✖ ปิด
+      </button>
+
+      <img
+        src="${meal.image}"
+        alt="${meal.name}"
+      >
+
+      <h2>
+        🍽️ ${meal.name}
+      </h2>
+
+      <p>
+        🆔 ID: ${meal.id}
+      </p>
+
+      <p>
+        🍴 Category: ${meal.category || "Unknown"}
+      </p>
+
+      <p>
+        🌎 Area: ${meal.area || "Unknown"}
+      </p>
+
+      <h3>
+        📝 วิธีทำ
+      </h3>
+
+      <p class="instructions">
+        ${meal.instructions || "ไม่มีข้อมูลวิธีทำ"}
+      </p>
+
+    `;
+
+    detail.scrollIntoView({
+      behavior: "smooth"
+    });
+
+  } catch (error) {
+
+    detail.innerHTML = `
+      <div class="error">
+        ❌ ${error.message}
+      </div>
+    `;
+
+  }
+}
+
+
+// ===============================
+// CLOSE DETAIL
+// ===============================
+function closeDetail() {
+
+  const detail = document.getElementById("detail");
+
+  detail.style.display = "none";
+
+  detail.innerHTML = "";
+
+}
+
+
+// ===============================
+// RANDOM MEAL
+// ===============================
+async function randomMeal() {
+
+  const result = document.getElementById("randomResult");
+
+  result.innerHTML = `
+    <div class="loading">
+      🎲 กำลังสุ่มเมนู...
+    </div>
+  `;
+
+  try {
+
+    const response = await fetch("/random");
+
+    if (!response.ok) {
+      throw new Error("สุ่มเมนูไม่สำเร็จ");
+    }
+
+    const meal = await response.json();
+
+    const isFavorite = favorites.some(
+      item => String(item.id) === String(meal.id)
+    );
+
+    result.innerHTML = `
 
       <div class="random-card">
 
@@ -522,368 +375,240 @@ async function randomMeal() {
           alt="${meal.name}"
         >
 
-        <div>
+        <h2>
+          🍓 ${meal.name}
+        </h2>
 
-          <span>
-            ✨ เมนูที่สุ่มได้
-          </span>
+        <p>
+          🍴 Category: ${meal.category || "Unknown"}
+        </p>
 
-          <h2>
-            ${meal.name}
-          </h2>
+        <p>
+          🌎 Area: ${meal.area || "Unknown"}
+        </p>
 
-          <p>
-            🍽️ ${meal.category || '-'}
-          </p>
+        <p>
+          🆔 ID: ${meal.id}
+        </p>
 
-          <p>
-            🌎 ${meal.area || '-'}
-          </p>
+        <button
+          class="detail-btn"
+          onclick="showDetail(${meal.id})"
+        >
+          👀 ดูรายละเอียด
+        </button>
 
-          <button
-            class="detail-button"
-            onclick="showDetail(${meal.id})"
-          >
-            ดูวิธีทำ
-          </button>
-
-        </div>
+        <button
+          class="favorite-button"
+          onclick="toggleFavorite(${meal.id})"
+        >
+          ${isFavorite ? "❤️ อยู่ในเมนูโปรดแล้ว" : "♡ เพิ่มในเมนูโปรด"}
+        </button>
 
       </div>
 
     `;
 
-    document.getElementById(
-      'randomResult'
-    ).scrollIntoView({
-      behavior: 'smooth'
-    });
+  } catch (error) {
 
-    button.textContent =
-      '🎲 สุ่มเมนูอีกครั้ง';
-
-  } catch (err) {
-
-    showError(err.message);
-
-    document.getElementById(
-      'randomButton'
-    ).textContent =
-      '🎲 สุ่มเมนู';
+    result.innerHTML = `
+      <div class="error">
+        ❌ ${error.message}
+      </div>
+    `;
 
   }
-
 }
 
-// =====================================================================
-// 🌎 โหลดประเทศ
-// =====================================================================
 
-async function loadCountries() {
+// ===============================
+// FAVORITE
+// ===============================
+function toggleFavorite(id) {
 
-  try {
-
-    const res =
-      await fetch('/areas');
-
-    if (!res.ok) {
-      throw new Error(
-        'โหลดประเทศไม่สำเร็จ'
-      );
-    }
-
-    const areas =
-      await res.json();
-
-    const select =
-      document.getElementById(
-        'country'
-      );
-
-    areas.forEach(area => {
-
-      const option =
-        document.createElement(
-          'option'
-        );
-
-      option.value = area;
-      option.textContent =
-        area;
-
-      select.appendChild(
-        option
-      );
-
-    });
-
-  } catch (err) {
-
-    console.log(
-      'Country Error:',
-      err.message
+  const meal =
+    currentMeals.find(
+      item => String(item.id) === String(id)
     );
 
+  if (!meal) {
+
+    const existing =
+      favorites.find(
+        item => String(item.id) === String(id)
+      );
+
+    if (existing) {
+
+      favorites = favorites.filter(
+        item => String(item.id) !== String(id)
+      );
+
+      saveFavorites();
+
+    }
+
+    return;
   }
 
-}
-
-// =====================================================================
-// ❤️ Favorite
-// =====================================================================
-
-function getFavorites() {
-
-  return JSON.parse(
-    localStorage.getItem(
-      'foodieFavorites'
-    ) || '[]'
+  const exists = favorites.some(
+    item => String(item.id) === String(id)
   );
 
+  if (exists) {
+
+    favorites = favorites.filter(
+      item => String(item.id) !== String(id)
+    );
+
+  } else {
+
+    favorites.push(meal);
+
+  }
+
+  saveFavorites();
+
+  renderMeals(currentMeals);
+
+  renderFavorites();
 }
 
-function saveFavorites(favorites) {
+
+// ===============================
+// SAVE FAVORITES
+// ===============================
+function saveFavorites() {
 
   localStorage.setItem(
-    'foodieFavorites',
+    "foodieFavorites",
     JSON.stringify(favorites)
   );
 
 }
 
-function isFavorite(id) {
 
-  const favorites =
-    getFavorites();
+// ===============================
+// RENDER FAVORITES
+// ===============================
+function renderFavorites() {
 
-  return favorites.includes(
-    Number(id)
-  );
+  const container =
+    document.getElementById("favorites");
 
-}
+  if (!favorites.length) {
 
-function toggleFavorite(id) {
-
-  let favorites =
-    getFavorites();
-
-  id = Number(id);
-
-  if (favorites.includes(id)) {
-
-    favorites =
-      favorites.filter(
-        item => item !== id
-      );
-
-  } else {
-
-    favorites.push(id);
-
-  }
-
-  saveFavorites(favorites);
-
-  renderMeals(
-    currentMeals
-  );
-
-  renderFavorites();
-
-}
-
-// =====================================================================
-// แสดงเมนูโปรด
-// =====================================================================
-
-async function renderFavorites() {
-
-  const box =
-    document.getElementById(
-      'favorites'
-    );
-
-  const favorites =
-    getFavorites();
-
-  if (favorites.length === 0) {
-
-    box.innerHTML = `
-      <p class="empty">
-        ♡ ยังไม่มีเมนูโปรด
-      </p>
+    container.innerHTML = `
+      <div class="empty">
+        💗 ยังไม่มีเมนูโปรด
+      </div>
     `;
 
     return;
-
   }
 
-  const results = [];
+  container.innerHTML = favorites.map(meal => `
 
-  for (
-    const id of favorites
-  ) {
+    <div class="favorite-item">
 
-    try {
+      <img
+        src="${meal.image}"
+        alt="${meal.name}"
+      >
 
-      const res =
-        await fetch(
-          `/meals/${id}`
-        );
+      <h4>
+        ${meal.name}
+      </h4>
 
-      if (res.ok) {
+      <p>
+        🍴 ${meal.category || "Unknown"}
+      </p>
 
-        const meal =
-          await res.json();
+      <p>
+        🌎 ${meal.area || "Unknown"}
+      </p>
 
-        results.push(meal);
+      <button
+        class="detail-btn"
+        onclick="showDetail(${meal.id})"
+      >
+        👀 ดูรายละเอียด
+      </button>
 
-      }
+      <button
+        class="favorite-button"
+        onclick="toggleFavorite(${meal.id})"
+      >
+        💔 ลบออก
+      </button>
 
-    } catch (err) {
+    </div>
 
-      console.log(err);
-
-    }
-
-  }
-
-  box.innerHTML =
-    results.map(meal => `
-
-      <div class="favorite-item">
-
-        <img
-          src="${meal.image}"
-          alt="${meal.name}"
-        >
-
-        <div>
-
-          <strong>
-            ${meal.name}
-          </strong>
-
-          <small>
-            🌎 ${meal.area || '-'}
-          </small>
-
-        </div>
-
-        <button
-          onclick="showDetail(${meal.id})"
-        >
-          ดู
-        </button>
-
-        <button
-          class="remove-favorite"
-          onclick="toggleFavorite(${meal.id})"
-        >
-          ✕
-        </button>
-
-      </div>
-
-    `).join('');
-
+  `).join("");
 }
 
-// =====================================================================
-// Search
-// =====================================================================
 
+// ===============================
+// SEARCH
+// ===============================
 function searchMeals() {
 
   loadDashboard();
 
 }
 
-// =====================================================================
-// Error
-// =====================================================================
 
-function showError(msg) {
+// ===============================
+// ERROR
+// ===============================
+function showError(message) {
 
-  const box =
-    document.getElementById(
-      'error'
-    );
-
-  box.textContent =
-    msg;
-
-  box.style.display =
-    'block';
+  document.getElementById("error").innerHTML = `
+    <div class="error">
+      ❌ ${message}
+    </div>
+  `;
 
 }
 
-// =====================================================================
-// เริ่มต้นเว็บ
-// =====================================================================
 
+// ===============================
+// EVENTS
+// ===============================
 document.addEventListener(
-  'DOMContentLoaded',
+  "DOMContentLoaded",
   () => {
-
-    const input =
-      document.getElementById(
-        'searchInput'
-      );
-
-    const algo =
-      document.getElementById(
-        'algo'
-      );
-
-    const order =
-      document.getElementById(
-        'order'
-      );
-
-    const country =
-      document.getElementById(
-        'country'
-      );
-
-    input.addEventListener(
-      'keydown',
-      event => {
-
-        if (
-          event.key === 'Enter'
-        ) {
-
-          searchMeals();
-
-        }
-
-      }
-    );
-
-    // เปลี่ยน Sort แล้วเรียงทันที
-    algo.addEventListener(
-      'change',
-      loadDashboard
-    );
-
-    // เปลี่ยน A-Z / Z-A
-    order.addEventListener(
-      'change',
-      loadDashboard
-    );
-
-    // เปลี่ยนประเทศ
-    country.addEventListener(
-      'change',
-      loadDashboard
-    );
-
-    loadCountries();
 
     loadDashboard();
 
     renderFavorites();
+
+    document
+      .getElementById("sort")
+      .addEventListener(
+        "change",
+        loadDashboard
+      );
+
+    document
+      .getElementById("order")
+      .addEventListener(
+        "change",
+        loadDashboard
+      );
+
+    document
+      .getElementById("searchInput")
+      .addEventListener(
+        "keydown",
+        event => {
+
+          if (event.key === "Enter") {
+            searchMeals();
+          }
+
+        }
+      );
 
   }
 );
